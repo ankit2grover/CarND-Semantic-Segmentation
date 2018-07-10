@@ -59,11 +59,11 @@ Augumentation helps but here we are getting better results without augumentation
 
 Below are a few sample images from the output of the fully convolutional network, with the segmentation class overlaid upon the original image in green.
 
-![sample1](./resultSamples/sample1.png)
-![sample2](./resultSamples/sample2.png)
-![sample3](./resultSamples/sample3.png)
-![sample4](./resultSamples/sample4.png)
-![sample5](./resultSamples/sample5.png)
+![sample1](./sample1.png)
+![sample2](./sample2.png)
+![sample3](./sample3.png)
+![sample4](./sample4.png)
+![sample5](./sample5.png)
 
 Performance is very good, but not perfect with only spots of road identified in a handful of images.
 
