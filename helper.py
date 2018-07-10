@@ -10,6 +10,7 @@ import tensorflow as tf
 from glob import glob
 from urllib.request import urlretrieve
 from tqdm import tqdm
+import augument
 
 
 class DLProgress(tqdm):
@@ -85,6 +86,7 @@ def gen_batch_function(data_folder, image_shape):
                 gt_image_file = label_paths[os.path.basename(image_file)]
 
                 image = scipy.misc.imresize(scipy.misc.imread(image_file), image_shape)
+                #augument_image = augument.transform_image(image)
                 gt_image = scipy.misc.imresize(scipy.misc.imread(gt_image_file), image_shape)
 
                 gt_bg = np.all(gt_image == background_color, axis=2)
@@ -92,7 +94,9 @@ def gen_batch_function(data_folder, image_shape):
                 gt_image = np.concatenate((gt_bg, np.invert(gt_bg)), axis=2)
 
                 images.append(image)
+                #images.append(augument_image)
                 gt_images.append(gt_image)
+                #gt_images.append(gt_image)
 
             yield np.array(images), np.array(gt_images)
     return get_batches_fn
@@ -127,7 +131,7 @@ def gen_test_output(sess, logits, keep_prob, image_pl, data_folder, image_shape)
 
 def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_prob, input_image):
     # Make folder for current run
-    output_dir = os.path.join(runs_dir, str(time.time()))
+    output_dir = os.path.join(runs_dir, "images")
     if os.path.exists(output_dir):
         shutil.rmtree(output_dir)
     os.makedirs(output_dir)
@@ -135,6 +139,8 @@ def save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, keep_p
     # Run NN on test images and save them to HD
     print('Training Finished. Saving test images to: {}'.format(output_dir))
     image_outputs = gen_test_output(
-        sess, logits, keep_prob, input_image, os.path.join(data_dir, 'data_road/testing'), image_shape)
+        sess, logits, keep_prob, input_image, os.path.join('data_road', 'testing'), image_shape)
+    print('Image outputs generated')
     for name, image in image_outputs:
+        print ('Saving image with dir : {}'.format(os.path.join(output_dir, name)))
         scipy.misc.imsave(os.path.join(output_dir, name), image)

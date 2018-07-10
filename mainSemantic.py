@@ -4,11 +4,6 @@ import helper
 import project_tests as tests
 import warnings
 from distutils.version import LooseVersion
-import scipy.misc
-from glob import glob
-from matplotlib.pyplot import imshow
-import numpy as np
-from PIL import Image
 
 ## Check tensorfow version and make sure that it should be greater than 1.0
 assert LooseVersion(tf.__version__) >= LooseVersion('1.0'), 'Please use TensorFlow version 1.0 or newer.  You are using: {}'.format(tf.__version__)
@@ -19,8 +14,7 @@ if not tf.test.gpu_device_name():
   warnings.warn('No GPU found. Please use a GPU to train your neural network.')
 else:
   print('Default GPU device{}'.format(tf.test.gpu_device_name()))
-
-    
+  
 def load_vgg(sess, vgg_path):
   """
   Load Pretrained VGG Model into TensorFlow.
@@ -46,7 +40,6 @@ def load_vgg(sess, vgg_path):
   return input_tensor, prob_tensor, layer3_tensor, layer4_tensor, layer7_tensor
 
 tests.test_load_vgg(load_vgg, tf)
-print ("Load VGG Test passed")
 
 
 def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
@@ -82,11 +75,10 @@ def layers(vgg_layer3_out, vgg_layer4_out, vgg_layer7_out, num_classes):
   
   ## Upsample deconvolution x8
   third_upsample_7x8 = tf.layers.conv2d_transpose(second_skip_7_3, num_classes, (16,16), strides=(8,8), 
-                                      padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3), name='last_layer')
+                                      padding='same', kernel_regularizer=tf.contrib.layers.l2_regularizer(1e-3))
   return third_upsample_7x8
 
 tests.test_layers(layers)
-print ("Layers Test passed")
   
   
 def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
@@ -98,15 +90,13 @@ def optimize(nn_last_layer, correct_label, learning_rate, num_classes):
     :param num_classes: Number of classes to classify
     :return: Tuple of (logits, train_op, cross_entropy_loss)
     """
-    logits = tf.reshape(nn_last_layer, (-1, num_classes), name='logits')
-    labels = tf.reshape(correct_label, (-1, num_classes), name ='reshaped_labels')
-    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = labels), name="loss")
-    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_loss, name='train_operation')
-    iou, conf_matrix = tf.metrics.mean_iou(labels, logits,num_classes = num_classes,name="iou")
-    return logits, train_op, cross_entropy_loss, iou
+    logits = tf.reshape(nn_last_layer, (-1, num_classes))
+    labels = tf.reshape(correct_label, (-1, num_classes))
+    cross_entropy_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = logits, labels = labels))
+    train_op = tf.train.AdamOptimizer(learning_rate).minimize(cross_entropy_loss)
+    return logits, train_op, cross_entropy_loss
   
-#tests.test_optimize(optimize)
-#print ("Optimize Test passed")
+tests.test_optimize(optimize)
   
 def evaluate(sess, nn_last_layer, correct_label, input_image, get_batches_fn, num_classes, batch_size, keep_prob, logits, reshape_labels):
   iou,conf_mat = tf.metrics.mean_iou( predictions=logits, labels = reshape_labels, num_classes=num_classes,name="iou")
@@ -124,7 +114,7 @@ def evaluate(sess, nn_last_layer, correct_label, input_image, get_batches_fn, nu
   
   
 def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_loss, input_image,
-             correct_label, keep_prob, learning_rate, iou):
+             correct_label, keep_prob, learning_rate):
   """
   Train neural network and print out the loss during training.
   :param sess: TF Session
@@ -142,28 +132,34 @@ def train_nn(sess, epochs, batch_size, get_batches_fn, train_op, cross_entropy_l
   sess.run(tf.global_variables_initializer())
   sess.run(tf.local_variables_initializer())
   for i in range(epochs):
-    counter = 0
+    counter = 0;
+    
     losses = 0
-    total_iou = 0
+    j = 0;
     for images_batch, labels_batch in get_batches_fn(batch_size):
-      _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image:images_batch, correct_label: labels_batch, keep_prob:0.5})
+      _, loss = sess.run([train_op, cross_entropy_loss], feed_dict={input_image:images_batch, correct_label: labels_batch, keep_prob:0.9})
+      print("Batch: {}".format(j))
+      #print ("Iteration :{} and loss is {:3f}".format(j, loss))
+      ++j
       losses += loss
-      #total_iou += train_iou
-      #print ("Loss of batch is {:3f}".format(loss))
-        
       
     print("Training finished")
     print ("Epoch {} ....".format(i))
-    print ("Total average loss is {:3f}".format((losses * (batch_size))/289))
-            
+    print ("Total loss is {:3f}".format(losses * batch_size/289))
+    #evaluate(sess, nn_last_layer, correct_label, input_image, get_batches_fn, num_classes, batch_size, keep_prob, logits, reshape_labels)
+      
+  
+tests.test_train_nn(train_nn)
+  
+## Run the model
 def run():
   num_classes = 2
   image_shape = (160, 576)
   data_dir = './data'
   runs_dir = './run'
-  EPOCHS_NUM = 50
-  BATCH_SIZE = 5
-  learning_rate = 0.0009
+  EPOCHS_NUM = 5
+  BATCH_SIZE = 2
+  learning_rate = .001
   correct_label = tf.placeholder(tf.int32, shape=[None, image_shape[0], image_shape[1], num_classes], name="correct_labels")
   #input_image = tf.placeholder(tf.float32, shape=[None, image_shape[0], image_shape[1], 3], name="input_images")
   
@@ -185,39 +181,18 @@ def run():
     # TODO: Build NN using load_vgg, layers, and optimize function
     input_tensor, prob_tensor, layer3_tensor, layer4_tensor, layer7_tensor = load_vgg(sess, vgg_path)
     nn_last_layer = layers(layer3_tensor, layer4_tensor, layer7_tensor, num_classes)
-    logits, train_op, cross_entropy_loss, iou = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
-    ##operations = sess.graph.get_operations()
-    #print ("Name of all the operations: ")
-    ##for op in operations:
-        ##print (op.name)
+    logits, train_op, cross_entropy_loss = optimize(nn_last_layer, correct_label, learning_rate, num_classes)
     
-    saver = tf.train.Saver(max_to_keep=1)
     # TODO: Train NN using the train_nn function
     train_nn(sess, EPOCHS_NUM, BATCH_SIZE, get_batches_fn, 
-             train_op, cross_entropy_loss, input_tensor, correct_label, prob_tensor, learning_rate, iou)
-    
-    savePath = saver.save(sess, "savedModels/vggRoadModel.ckpt")
-    print ("Model saved and path is {}".format(savePath))
+             train_op, cross_entropy_loss, input_tensor, correct_label, prob_tensor, learning_rate)
+
     # TODO: Save inference data using helper.save_inference_samples
-    helper.save_inference_samples(runs_dir, 'data_road', sess, image_shape, logits, prob_tensor, input_tensor)
-    # Test inference of the model
-    test_img = os.path.join('data_road', 'testing', 'image_2', 'um_000000.png')
-    image = scipy.misc.imresize(scipy.misc.imread(test_img), image_shape)
-    im_softmax = sess.run(
-            [tf.nn.softmax(logits)],
-            {prob_tensor: 1.0, input_image: [image]})
-    im_softmax = im_softmax[0][:, 1].reshape(image_shape[0], image_shape[1])
-    segmentation = (im_softmax > 0.5).reshape(image_shape[0], image_shape[1], 1)
-    mask = np.dot(segmentation, np.array([[0, 255, 0, 127]]))
-    mask = scipy.misc.toimage(mask, mode="RGBA")
-    street_im = scipy.misc.toimage(image)
-    street_im.paste(mask, box=None, mask=mask)
-    imshow(np.asarray(street_im))
-    scipy.misc.imsave('testOutputs/ouput.png', street_im)
-    
+    helper.save_inference_samples(runs_dir, data_dir, sess, image_shape, logits, prob_tensor, input_tensor)
+
     # OPTIONAL: Apply the trained model to a video
-
-
-
+  
 if __name__ == '__main__':
     run()
+  
+  
